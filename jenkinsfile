@@ -1,70 +1,25 @@
 pipeline {
-
     agent any
-
-    parameters {
-        booleanParam(
-            name: 'autoApprove',
-            defaultValue: false,
-            description: 'Automatically apply Terraform plan without approval'
-        )
-    }
-
     environment {
-        AWS_ACCESS_KEY_ID     = credentials('AWS_ACCESS_KEY_ID')
-        AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')
+        AWS_ACCESS_KEY_ID = credentials('aws-access-key')
+        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-key')
+        AWS_REGION = 'us-east-1'
     }
-
     stages {
-
         stage('Checkout') {
             steps {
-                checkout scm
+                git 'https://github.com/1808-me/terraform-jenkins.git'
             }
         }
-
-        stage('Terraform Init') {
+        stage('Deploy CloudFormation Stack') {
             steps {
-                dir('terraform') {
-                    bat 'terraform init'
-                }
-            }
-        }
-
-        stage('Terraform Plan') {
-            steps {
-                dir('terraform') {
-                    bat 'terraform plan -out=tfplan'
-                    bat 'terraform show -no-color tfplan > tfplan.txt'
-                }
-            }
-        }
-
-        stage('Approval') {
-            when {
-                expression { !params.autoApprove }
-            }
-            steps {
-                script {
-                    def plan = readFile 'terraform/tfplan.txt'
-                    input(
-                        message: 'Review Terraform plan before applying',
-                        parameters: [
-                            text(
-                                name: 'Terraform Plan',
-                                description: 'Review the plan below',
-                                defaultValue: plan
-                            )
-                        ]
+                withAWS(region: "${AWS_REGION}", credentials: 'aws-creds') {
+                    cfnUpdate(
+                        stack: 'MyStack',
+                        file: 'cloudformation/template.yml',
+                        capabilities: 'CAPABILITY_IAM',
+                        region: "${AWS_REGION}"
                     )
-                }
-            }
-        }
-
-        stage('Terraform Apply') {
-            steps {
-                dir('terraform') {
-                    bat 'terraform apply -input=false tfplan'
                 }
             }
         }

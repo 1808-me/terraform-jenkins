@@ -2,13 +2,11 @@ pipeline {
     agent any
 
     environment {
-        AWS_ACCESS_KEY_ID     = credentials('AWS_ACCESS_KEY_ID')
+        AWS_ACCESS_KEY_ID = credentials('AWS_ACCESS_KEY_ID')
         AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')
-        AWS_DEFAULT_REGION    = 'us-east-1'
     }
 
     stages {
-
         stage('Checkout Terraform Code') {
             steps {
                 git branch: 'main',
@@ -18,42 +16,32 @@ pipeline {
 
         stage('Terraform Init') {
             steps {
-                sh '''
-                  terraform init
-                '''
+                bat 'terraform init'
             }
         }
 
         stage('Terraform Plan') {
             steps {
-                sh '''
-                  terraform plan -no-color | tee tfplan.txt
-                '''
+                bat 'terraform plan -out=tfplan.txt'
             }
         }
 
         stage('Approve Infrastructure Deployment') {
             steps {
-                input message: 'Do you want to APPLY this Terraform plan to AWS?',
-                      ok: 'Yes, deploy infrastructure'
+                input message: 'Do you want to deploy the infrastructure?'
             }
         }
 
         stage('Terraform Apply') {
             steps {
-                sh '''
-                  terraform apply -auto-approve
-                '''
+                bat 'terraform apply tfplan.txt'
             }
         }
     }
 
     post {
-        success {
-            echo 'Terraform pipeline completed successfully'
-        }
-        failure {
-            echo 'Terraform pipeline failed'
+        always {
+            echo 'Terraform pipeline finished'
         }
     }
 }
